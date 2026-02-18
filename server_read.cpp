@@ -10,8 +10,7 @@
 #include <unistd.h>
 #include <vector>
 #include <thread>
-
-using namespace std;
+#include "USBMSCESP32-S2mini/structs.h"
 
 #pragma pack(push,1)
 
@@ -35,76 +34,38 @@ struct BPB_FAT {
 
 #pragma pack(pop)
 
-const int BUFFER_SIZE = 32768;
-
-#pragma pack(push,1)
-
-struct remote_request
-{
-    uint64_t position;
-    uint32_t length;
-};
-
-enum BUFFER_STATUSES
-{
-    BUFFER_STATUS_NONE = 0,
-    BUFFER_STATUS_NEED_REQUEST,
-    BUFFER_STATUS_IN_REQUEST,
-    BUFFER_STATUS_ERROR,
-    BUFFER_STATUS_DONE
-};
-struct sectors_buffer
-{
-    BUFFER_STATUSES status = BUFFER_STATUS_NONE;
-    int64_t lba = 0;
-    uint32_t offset = 0;
-    uint32_t bufsize = BUFFER_SIZE;
-    uint32_t recv_offset = 0;
-    uint32_t recv_len = 0;
-    byte buffer[BUFFER_SIZE];
-};
-
-struct init_answer
-{
-    unsigned int sectors_count;
-    unsigned int sector_size;
-    unsigned int reserved[6];
-};
-
-#pragma pack(pop)
-
 std::pair<uint16_t,uint32_t> read_fat32_info(const char* image_file) {
-    ifstream file(image_file, ios::binary);
+    std::ifstream file(image_file, std::ios::binary);
     if (!file.is_open()) {
-        cerr << "Error opening file." << endl;
+        std::cerr << "Error opening file." << std::endl;
         return std::make_pair(0,0);
     }
 
     BPB_FAT bpb{};
     file.read((char*)&bpb, sizeof(bpb));
-    cout << "Reading FAT32 info from: " << image_file << endl;
-    cout << "  Bytes per Sector: " << std::dec << bpb.sector_size << endl;
-    cout << "  Total Sectors (32-bit): " << std::dec << bpb.total_sectors_32 << endl;
+    std::cout << "Reading FAT32 info from: " << image_file << std::endl;
+    std::cout << "  uint8_ts per Sector: " << std::dec << bpb.sector_size << std::endl;
+    std::cout << "  Total Sectors (32-bit): " << std::dec << bpb.total_sectors_32 << std::endl;
     return std::make_pair(bpb.sector_size, bpb.total_sectors_32);
 }
 
-std::vector<byte> get_init_answer()
+std::vector<uint8_t> get_init_answer()
 {
-    std::vector<byte> answer_data;
-    answer_data.resize(sizeof(init_answer) + 4);
+    std::vector<uint8_t> answer_data;
+    answer_data.resize(sizeof(init_answer)); // HERE
     auto* answer = (init_answer*)&answer_data[0];
     std::tie(answer->sector_size,answer->sectors_count) = read_fat32_info("test.img");
     return answer_data;
 }
 
-void handleClient(int client_socket) {
-    std::cout << "Client: Connection accepted" << std::endl;
+void handleClientRead(int client_socket) {
+    //std::cout << "Client: Connection accepted" << std::endl;
     int optval = 1;
     socklen_t optlen = sizeof(optval);
     int res = setsockopt(client_socket, SOL_SOCKET, SO_KEEPALIVE, &optval, optlen);
     if (res < 0)
     {
-        std::cout << "Error: Can't set SO_KEEPALIVE option" << std::endl;
+        //std::cout << "Error: Can't set SO_KEEPALIVE option" << std::endl;
         exit(EXIT_FAILURE);
     }
 
@@ -112,11 +73,11 @@ void handleClient(int client_socket) {
     res = setsockopt(client_socket, SOL_SOCKET, SO_REUSEADDR, &optval, optlen);
     if (res < 0)
     {
-        std::cout << "Error: Can't set SO_REUSEADDR option" << std::endl;
+        //std::cout << "Error: Can't set SO_REUSEADDR option" << std::endl;
         exit(EXIT_FAILURE);
     }
 
-    std::cout << "Client: Connection accepted" << std::endl;
+    //std::cout << "Client: Connection accepted" << std::endl;
 
     while (true)
     {
@@ -125,32 +86,32 @@ void handleClient(int client_socket) {
         char *buffer = (char *) &request;
         int length = sizeof(request);
         while (length > 0) {
-            int bytes_recv = recv(client_socket, buffer, length, 0);
-            if (bytes_recv <= 0) {
+            int uint8_ts_recv = recv(client_socket, buffer, length, 0);
+            if (uint8_ts_recv <= 0) {
                 closed = true;
                 break;
             }
-            length -= bytes_recv;
-            buffer += bytes_recv;
+            length -= uint8_ts_recv;
+            buffer += uint8_ts_recv;
         }
         if (closed) {
             break;
         }
         if (request.length == 0) {
-            std::vector<byte> answer_data = get_init_answer();
-            std::cout << "Client: Init request" << std::endl;
+            std::vector<uint8_t> answer_data = get_init_answer();
+            //std::cout << "Client: Init request" << std::endl;
 
             if (send(client_socket, (char *) &answer_data[0], answer_data.size(), 0) != answer_data.size()) {
-                std::cout << "Error: Cant send data to client" << std::endl;
+                //std::cout << "Error: Cant send data to client" << std::endl;
                 closed = true;
             }
         } else {
-            std::cout << "Client: Data request (addr=" << request.position << ", size=" << request.length << ")"
-                      << std::endl;
+            //std::cout << "Client: Data request (addr=" << request.position << ", size=" << request.length << ")"
+                      //<< std::endl;
 
-            std::vector<byte> buffer;
+            std::vector<uint8_t> buffer;
             if (request.length > 16777216) {
-                std::cout << "Error: request.length > 16777216" << std::endl;
+                //std::cout << "Error: request.length > 16777216" << std::endl;
                 closed = true;
             }
             buffer.resize(request.length);
@@ -162,18 +123,18 @@ void handleClient(int client_socket) {
             char buffer2[request.length];
             file.read(buffer2, request.length);
             for (int i = 0; i < request.length; i++) {
-                buffer[i] = static_cast<byte>(buffer2[i]);
+                buffer[i] = static_cast<uint8_t>(buffer2[i]);
             }
-            std::cout << "Buffer: " << std::endl;
+            //std::cout << "Buffer: " << std::endl;
             for (int i = 0; i < request.length; i++) {
-                std::cout << buffer2[i];
+                //std::cout << buffer2[i];
             }
             // =====================
             if (send(client_socket, (char *) &buffer[0], request.length, 0) != request.length) {
-                std::cout << "Error: Cant send data to client" << std::endl;
+                //std::cout << "Error: Cant send data to client" << std::endl;
                 closed = true;
             } else {
-                std::cout << "Client: Data sent" << std::endl;
+                //std::cout << "Client: Data sent" << std::endl;
             }
         }
         if (closed)
@@ -182,13 +143,13 @@ void handleClient(int client_socket) {
         }
     }
     close(client_socket);
-    std::cout << "Client: Connection closed" << std::endl;
+    //std::cout << "Client: Connection closed" << std::endl;
 }
 
 int main(int argc, char** argv) {
-    std::cout << sizeof(sectors_buffer) << std::endl; // 32796
-    std::cout << sizeof(remote_request) << std::endl; // 12
-    std::cout << sizeof(init_answer) << std::endl; // 24
+    //std::cout << sizeof(sectors_buffer) << std::endl; // 32796
+    //std::cout << sizeof(remote_request) << std::endl; // 12
+    //std::cout << sizeof(init_answer) << std::endl; // 24
 
     int server_fd, new_socket, valread;
     struct sockaddr_in address = {};
@@ -197,7 +158,7 @@ int main(int argc, char** argv) {
 
     if ((server_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_IP)) == 0)
     {
-        std::cout << "Error: Create socket failed" << std::endl;
+        //std::cout << "Error: Create socket failed" << std::endl;
         exit(EXIT_FAILURE);
     }
 
@@ -207,23 +168,24 @@ int main(int argc, char** argv) {
     // reuse address
     if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1)
     {
-        std::cout << "Error: Can't set SO_REUSEADDR option" << std::endl;
+        //std::cout << "Error: Can't set SO_REUSEADDR option" << std::endl;
         exit(EXIT_FAILURE);
     }
 
     if (bind(server_fd, (struct sockaddr*)&address, sizeof(address)) < 0)
     {
-        std::cout << "Error: Can't bind on port " << 12345 << std::endl;
+        //std::cout << "Error: Can't bind on port " << 12345 << std::endl;
         exit(EXIT_FAILURE);
     }
     if (listen(server_fd, 3) < 0)
     {
-        std::cout << "Error: Can't listen on port " << 12345 << std::endl;
+        //std::cout << "Error: Can't listen on port " << 12345 << std::endl;
         exit(EXIT_FAILURE);
     }
 
-    std::cout << "Server: Started on port " << 12345 << std::endl;
+    //std::cout << "Server: Started on port " << 12345 << std::endl;
     while ((new_socket = accept(server_fd, (struct sockaddr*)&address, reinterpret_cast<socklen_t *>(&addrlen))) >= 0) {
-        std::thread(handleClient, new_socket).detach();
+        // std::thread(handleClient, new_socket).detach();
+        handleClientRead(new_socket);
     }
 }
