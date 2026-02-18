@@ -41,7 +41,6 @@ static const byte LED_PIN = 2;
 
 init_answer answer = {};
 sectors_buffer *g_buffer;
-sectors_buffer *g_buffer2;
 
 static int32_t onWrite(uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize) {
     while (WiFi.status() != WL_CONNECTED) {
@@ -52,19 +51,19 @@ static int32_t onWrite(uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t 
     {
         Serial.printf("Error write: bufsize: %u\n", bufsize);
     }
-    else if (g_buffer2->status == BUFFER_STATUS_NONE || g_buffer2->status == BUFFER_STATUS_DONE){
-        g_buffer2->lba = lba;
-        g_buffer2->status = BUFFER_STATUS_NEED_REQUEST;
-        g_buffer2->offset = offset;
-        g_buffer2->bufsize = bufsize;
-        memcpy(g_buffer2->buffer, buffer, bufsize);
+    else if (g_buffer->status == BUFFER_STATUS_NONE || g_buffer->status == BUFFER_STATUS_DONE){
+        g_buffer->lba = lba;
+        g_buffer->status = BUFFER_STATUS_NEED_REQUEST_WRITE;
+        g_buffer->offset = offset;
+        g_buffer->bufsize = bufsize;
+        memcpy(g_buffer->buffer, buffer, bufsize);
     }
 
-    while (g_buffer2->status == BUFFER_STATUS_NEED_REQUEST)
+    while (g_buffer->status == BUFFER_STATUS_NEED_REQUEST_WRITE)
     {
         delay(1);
     }
-    if (g_buffer2->status == BUFFER_STATUS_DONE)
+    if (g_buffer->status == BUFFER_STATUS_DONE)
     {
         return bufsize;
     }
@@ -81,7 +80,7 @@ static int32_t onRead(uint32_t lba, uint32_t offset, void* buffer, uint32_t bufs
     uint64_t buffer_pos = (uint64_t)g_buffer->lba * DISK_SECTOR_SIZE + g_buffer->offset;
     if (buffer_pos <= pos && buffer_pos + g_buffer->bufsize >= pos + bufsize)
     {
-        if (g_buffer->status == BUFFER_STATUS_IN_REQUEST || g_buffer->status == BUFFER_STATUS_NEED_REQUEST)
+        if (g_buffer->status == BUFFER_STATUS_IN_REQUEST || g_buffer->status == BUFFER_STATUS_NEED_REQUEST_READ)
         {
             delay(1);
         }
@@ -91,17 +90,17 @@ static int32_t onRead(uint32_t lba, uint32_t offset, void* buffer, uint32_t bufs
             return bufsize;
         }
     }
-    while (g_buffer->status == BUFFER_STATUS_IN_REQUEST || g_buffer->status == BUFFER_STATUS_NEED_REQUEST)
+    while (g_buffer->status == BUFFER_STATUS_IN_REQUEST || g_buffer->status == BUFFER_STATUS_NEED_REQUEST_READ)
     {
         delay(1);
     }
     if (g_buffer->status == BUFFER_STATUS_NONE || g_buffer->status == BUFFER_STATUS_ERROR || g_buffer->status == BUFFER_STATUS_DONE)
     {
         g_buffer->lba = lba;
-        g_buffer->status = BUFFER_STATUS_NEED_REQUEST;
+        g_buffer->status = BUFFER_STATUS_NEED_REQUEST_READ;
         g_buffer->bufsize = BUFFER_SIZE;
     }
-    while (g_buffer->status == BUFFER_STATUS_IN_REQUEST || g_buffer->status == BUFFER_STATUS_NEED_REQUEST)
+    while (g_buffer->status == BUFFER_STATUS_IN_REQUEST || g_buffer->status == BUFFER_STATUS_NEED_REQUEST_READ)
     {
         delay(1);
     }
@@ -175,7 +174,6 @@ void receiveInit() {
 
 void setup() {
     g_buffer  = new sectors_buffer();
-    g_buffer2 = new sectors_buffer();
 
     Serial.println(F("Starting..."));
     HWSerial.begin(115200);
@@ -291,14 +289,13 @@ void loop()
             if (client2.connected())
             {
                 Serial.println(F("Connected to server2"));
-                g_buffer2->status = BUFFER_STATUS_NONE;
+                g_buffer->status = BUFFER_STATUS_NONE;
                 connected2 = true;
                 break;
             }
         }
-
     }
-    if (g_buffer->status == BUFFER_STATUS_NEED_REQUEST)
+    if (g_buffer->status == BUFFER_STATUS_NEED_REQUEST_READ)
     {
         remote_request request = { g_buffer->lba * DISK_SECTOR_SIZE + g_buffer->offset, g_buffer->bufsize };
         if (client.write((byte*)&request, sizeof(request)) != sizeof(request))
@@ -314,14 +311,14 @@ void loop()
 
         }
     }
-    if (g_buffer2->status == BUFFER_STATUS_NEED_REQUEST)
+    if (g_buffer->status == BUFFER_STATUS_NEED_REQUEST_WRITE)
     {
         Serial.println(F("Sending data to server2"));
-        if (client2.write((uint8_t*)g_buffer2, sizeof(*g_buffer2)) != sizeof(*g_buffer2)) {
+        if (client2.write((uint8_t*)g_buffer, sizeof(*g_buffer)) != sizeof(*g_buffer)) {
             client2.stop();
         } else {
             client2.flush();
-            g_buffer2->status = BUFFER_STATUS_DONE;
+            g_buffer->status = BUFFER_STATUS_DONE;
         }
     }
     if (g_buffer->status == BUFFER_STATUS_IN_REQUEST)

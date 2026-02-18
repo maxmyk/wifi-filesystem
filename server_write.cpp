@@ -55,20 +55,8 @@ void handleClientWrite(int client_socket) {
             length -= bytes_recv;
             buffer += bytes_recv;
         }
-        if (request.status == BUFFER_STATUS_NEED_REQUEST) {
-            //std::cout << "Client: Request received" << std::endl;
-            //std::cout << "Client: Request lba: " << request.lba << std::endl;
-            //std::cout << "Client: Request bufsize: " << request.bufsize << std::endl;
-            //std::cout << "Client: Request offset: " << request.offset << std::endl;
-            //std::cout << "Client: Request recv_offset: " << request.recv_offset << std::endl;
-            //std::cout << "Client: Request recv_len: " << request.recv_len << std::endl;
-            //std::cout << "Client: Request buffer: " << std::endl;
-            for (int i = 0; i < request.bufsize; i++) {
-                //std::cout << (int)request.buffer[i] << " ";
-            }
-            //std::cout << std::endl;
+        if (request.status == BUFFER_STATUS_NEED_REQUEST_WRITE) {
             handleSetRequest(request);
-            //std::cout << "Client: Request done" << std::endl;
         } else {
             std::cerr << "Client: Request error" << std::endl;
         }
