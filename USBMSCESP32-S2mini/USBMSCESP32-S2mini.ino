@@ -32,7 +32,6 @@ SettingsST settings;
 
 USBMSC MSC;
 WiFiClient client;
-WiFiClient client2;
 
 uint32_t DISK_SECTOR_COUNT = 0;
 uint16_t DISK_SECTOR_SIZE = 512;
@@ -223,22 +222,6 @@ void setup() {
         }
     }
     client.setNoDelay(true);
-    client2.setNoDelay(true);
-    while (!client2.connected())
-    {
-        if (client2.connect(settings.server_ip, settings.remote_port2))
-        {
-            if (client2.connected())
-            {
-                Serial.println(F("Connected to server2"));
-            }
-        }
-        if (millis() - timeStart > 20000)
-        {
-            break;
-        }
-    }
-    client2.setNoDelay(true);
     USB.onEvent(usbEventCallback);
     MSC.vendorID("ESP32");//max 8 chars
     MSC.productID("USB_MSC_MPZ");//max 16 chars
@@ -277,24 +260,6 @@ void loop()
         }
 
     }
-    while (!client2.connected())
-    {
-        if (connected2)
-        {
-            connected2 = false;
-            Serial.println(F("Disconnected from server2"));
-        }
-        if (client2.connect(settings.server_ip, settings.remote_port2))
-        {
-            if (client2.connected())
-            {
-                Serial.println(F("Connected to server2"));
-                g_buffer->status = BUFFER_STATUS_NONE;
-                connected2 = true;
-                break;
-            }
-        }
-    }
     if (g_buffer->status == BUFFER_STATUS_NEED_REQUEST_READ)
     {
         remote_request request = { g_buffer->lba * DISK_SECTOR_SIZE + g_buffer->offset, g_buffer->bufsize };
@@ -314,10 +279,10 @@ void loop()
     if (g_buffer->status == BUFFER_STATUS_NEED_REQUEST_WRITE)
     {
         Serial.println(F("Sending data to server2"));
-        if (client2.write((uint8_t*)g_buffer, sizeof(*g_buffer)) != sizeof(*g_buffer)) {
-            client2.stop();
+        if (client.write((uint8_t*)g_buffer, sizeof(*g_buffer)) != sizeof(*g_buffer)) {
+            client.stop();
         } else {
-            client2.flush();
+            client.flush();
             g_buffer->status = BUFFER_STATUS_DONE;
         }
     }
